@@ -1,0 +1,226 @@
+---
+title: "Chapter 5"
+format: html
+editor: source
+echo: true
+message: false
+warning: false
+
+---
+
+### libraries
+
+```{r}
+library(ggplot2)
+library(ggthemes)
+library(patchwork)
+library(Hmsc)
+```
+
+
+
+## 5.6 Simulated case studies
+
+p.80
+
+### simulating data
+
+Example from the book
+
+```{r}
+
+n <- 50
+x <- rnorm(n)
+
+# parameters----------
+beta1 <- 0
+beta2 <- 1
+
+L <- beta1 + beta2 *x
+y1 <- L + rnorm(n, sd = 1)
+y2 <- 1 * ((L + rnorm(n, sd = 1)) > 0)
+y3 <- rpois(n = n, lambda = exp(L + rnorm(n, sd = 1)))
+
+```
+
+```{r fig.height=4, fig.width=8}
+A <- ggplot(data = data.frame(L, y1), aes(L, y1)) +
+	geom_point() +
+	theme_bw() +
+	ggtitle("Normal")
+
+
+```
+
+
+### 5.6.2 fitting models
+
+normal distribution
+```{r}
+df <- data.frame(x, y1)
+m.lm <- lm(y1 ~ x, data = df)
+
+summary(m.lm)
+```
+
+first we need to construct the model
+
+```{r}
+Y <- as.matrix(y1)
+XData <- data.frame(x = x)
+m.normal <- Hmsc(Y = Y, XData = XData, XFormula = ~ x)
+
+m.normal
+
+```
+
+
+```{r}
+nChains <- 2
+thin <- 5
+
+samples <- 1000
+transient <- 500*thin
+verbose <- 500*thin
+```
+
+
+```{r}
+m.normal <- sampleMcmc(m.normal, thin = thin, samples = samples, transient = transient, nChains = nChains, verbose = verbose)
+```
+
+
+```{r}
+mpost <- convertToCodaObject(m.normal)
+```
+
+```{r}
+summary(mpost$Beta)
+```
+
+R2
+
+
+```{r}
+
+ preds <- computePredictedValues (m.normal, expected = T)
+ MF <- evaluateModelFit(hM = m.normal, predY = preds)
+ MF$RMSE
+
+```
+                                                                                        
+                                                                                        
+```{r}
+plot(mpost$Beta)
+```
+
+
+
+```{r}
+effectiveSize(mpost$Beta)
+
+gelman.diag(mpost$Beta)$psrf
+
+```
+
+                                                                                                                                                                                     
+```{r}
+
+plot(mpost$Beta)
+
+```
+
+check residuals
+
+```{r fig.height=5, fig.width=8}
+dfres <- data.frame(
+	nres.lm = rstandard(m.lm),
+	preds.lm = fitted.values(m.lm)
+)
+dfres$id <- 1:nrow(dfres)
+
+
+A <- ggplot(data =dfres, aes(x = nres.lm)) +
+	geom_histogram() +
+	theme_bw() +
+	ggtitle("") +
+	xlab("Residuals")
+
+
+B <- ggplot(data = dfres, aes(preds.lm, nres.lm)) +
+	geom_point() +
+	geom_hline(yintercept = 0) +
+	theme_bw()+
+	ylab("Residuals") +
+	xlab("prediction")
+	
+
+A + B  +
+  plot_annotation(tag_levels = 'A',
+  								tag_prefix = "(",
+  								tag_suffix =  ")")
+
+
+```
+
+on bayesian model:
+
+```{r}
+dfres <- data.frame(
+	preds.lm = apply(preds, FUN = mean, MARGIN = 1)
+)
+dfres$nres.lm <- y1 - dfres$preds.lm
+
+
+A <- ggplot(data =dfres, aes(x = nres.lm)) +
+	geom_histogram() +
+	theme_bw() +
+	ggtitle("") +
+	xlab("Residuals")
+
+
+B <- ggplot(data = dfres, aes(preds.lm, nres.lm)) +
+	geom_point() +
+	geom_hline(yintercept = 0) +
+	theme_bw()+
+	ylab("Residuals") +
+	xlab("prediction")
+	
+
+A + B  +
+  plot_annotation(tag_levels = 'A',
+  								tag_prefix = "(",
+  								tag_suffix =  ")")
+```
+
+
+
+### GLMs 5.6.5
+
+binomial distribution
+
+```{r}
+Y <- as.matrix(y2)
+m.probit = Hmsc(Y = Y, XData = XData, XFormula = ~ x, distr = "probit")
+
+```
+same posterior sampling
+
+
+```{r}
+verbose <- 0
+m.probit <- sampleMcmc(m.probit, thin = thin, samples = samples, transient = transient, nChains = nChains, verbose = verbose)
+
+```
+
+
+```{r}
+mpost <- convertToCodaObject(m.probit)
+effectiveSize(mpost$Beta)
+plot(mpost$Beta)
+```
+the effective size is smaller, because achieving convergence is harder for non normal models
+
+
+
+
