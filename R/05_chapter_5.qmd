@@ -218,8 +218,86 @@ m.probit <- sampleMcmc(m.probit, thin = thin, samples = samples, transient = tra
 mpost <- convertToCodaObject(m.probit)
 effectiveSize(mpost$Beta)
 plot(mpost$Beta)
+
+gelman.diag(mpost$Beta, multivariate = FALSE)$psrf
 ```
 the effective size is smaller, because achieving convergence is harder for non normal models
+
+```{r}
+round(summary(mpost$Beta)$quantiles, 2)
+
+preds <- computePredictedValues(m.probit)
+evaluateModelFit(hM = m.probit, predY = preds)
+
+```
+also ìthe values show more uncertainty
+
+
+
+*lognormal model*
+```{r}
+Y <- as.matrix(y3)
+m.lognormal.poisson  <- Hmsc(Y = Y, XData = XData, XFormula = ~ x, distr = "lognormal poisson")
+
+m.lognormal.poisson <- sampleMcmc(m.lognormal.poisson, thin = thin, samples = samples, transient = transient, nChains = nChains, verbose = verbose)
+
+mpost <- convertToCodaObject(m.lognormal.poisson)
+
+effectiveSize(mpost$Beta)
+gelman.diag(mpost$Beta, multivariate = FALSE)$psrf
+
+```
+
+
+```{r}
+round(summary(mpost$Beta)$quantiles, 2)
+
+preds <- computePredictedValues(m.lognormal.poisson, expected = TRUE)
+evaluateModelFit(hM = m.lognormal.poisson, predY = preds)
+```
+
+```{r}
+par(mfrow = c(1, 3))
+for (i in 1:3){
+	
+	m <- switch(i, m.normal, m.probit, m.lognormal.poisson)
+	Gradient <- constructGradient(m, focalVariable = "x")
+	predY <- predict(m, Gradient = Gradient, expected = TRUE)
+	
+	plotGradient(m, Gradient, pred = predY, measure = "Y", index = 1, showData = TRUE, main = 
+							 	c("Normal", "Probit", "Lognormal Poisson")[i])
+	
+}
+```
+
+
+### 5.6.7 Hierarchical Random Effects
+
+```{r}
+n <- 120
+x <- rnorm(n)
+beta1 <- 0
+beta2 <- 1
+sigma <- 1
+
+np <- 12
+sigma.plot <- 1
+L <- beta1 + beta2 * x
+plot.id <- sample(1:np, n, replace = T)
+ap <- rnorm(np, sd = sigma.plot)
+a <- ap[plot.id]
+y <- L + a + rnorm(n, sd = sigma)
+```
+ 
+```{r}
+df <- data.frame(x, y, plot.id)
+lin <- data.frame(beta1 = beta1 + ap, beta2 = beta2, plot.id = 1:12)
+
+ggplot(df, aes(x, y)) +
+	geom_point(aes(colour = factor(plot.id))) +
+	geom_abline(data = lin, aes(intercept = beta1, slope = beta2, colour = factor(plot.id)))
+
+```
 
 
 
