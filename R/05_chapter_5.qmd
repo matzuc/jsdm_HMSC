@@ -15,6 +15,9 @@ library(ggplot2)
 library(ggthemes)
 library(patchwork)
 library(Hmsc)
+library(viridis)
+library(dplyr)
+library(tidyr)
 ```
 
 
@@ -299,6 +302,205 @@ ggplot(df, aes(x, y)) +
 
 ```
 
+lmer
+
+```{r}
+plot.id <- as.factor(plot.id)
+sample.id <- as.factor(1:n)
+XData <- data.frame(x)
+Y <- as.matrix(y)
+
+studyDesign <- data.frame(sample = sample.id, plot= plot.id)
+rL <- HmscRandomLevel(units = studyDesign$plot)
+m <- Hmsc(Y = Y, XData = XData, XFormula = ~ x, studyDesign = studyDesign,
+					ranLevels = list("plot" = rL))
+
+```
 
 
+
+fit the model
+
+```{r}
+m <- sampleMcmc(m, thin = thin, samples = samples, transient = transient, nChains = nChains, verbose = verbose)
+```
+
+
+```{r}
+mpost <- convertToCodaObject(m)
+
+effectiveSize(mpost$Beta)
+gelman.diag(mpost$Beta, multivariate = FALSE)$psrf
+
+plot(mpost$Beta)
+
+```
+
+
+```{r}
+preds <- computePredictedValues(m)
+MF <- evaluateModelFit(hM = m, predY = preds)
+MF
+```
+
+
+*cross validation*
+
+```{r}
+partition <- createPartition(m , nfolds = 2, colum = "sample")
+partition
+```
+
+
+```{r}
+preds = computePredictedValues(m, partition = partition)
+```
+
+
+```{r}
+MF <- evaluateModelFit(hM = m, predY = preds)
+MF
+```
+
+si può fare la partizione sui plot invece che sulle samplign units
+
+
+```{r}
+partition <- createPartition(m, nfolds = 2, column = "plot")
+table(partition, plot.id)
+
+```
+
+```{r}
+preds = computePredictedValues(m, partition = partition)
+```
+
+
+```{r}
+MF <- evaluateModelFit(hM = m, predY = preds)
+MF
+```
+
+crollo di R2
+
+
+### 5.6.9 spatial Random Effects
+
+
+```{r}
+n <- 100
+beta1 <- 0
+beta2 <- 1
+sigma <- 1
+sigma.spatial <- 2
+alpha.spatial <- 0.5
+x <- rnorm(n)
+L <- beta1 + beta2 * x
+xycoords <- matrix(runif(2*n), ncol = 2)
+Sigma <- sigma.spatial^2* exp(-as.matrix(dist(xycoords)) / alpha.spatial)
+a <- MASS::mvrnorm(mu = rep(0, n), Sigma = Sigma)
+y <- L + a + rnorm(n, sd = sigma)
+
+```
+
+
+```{r}
+df <- data.frame(xycoords,x, y)
+
+ggplot(df |> pivot_longer(c(3, 4)), aes(X1, X2, colour = value)) +
+	geom_point(aes(size = abs(value))) +
+	coord_cartesian() +
+	theme_few() +
+	facet_wrap(~ name) +
+	scale_color_viridis()
+
+```
+
+```{r}
+sample.id <- as.factor(1:n)
+studyDesign <- data.frame(sample = sample.id)
+rownames(xycoords) <- sample.id
+rL <- HmscRandomLevel(sData = xycoords)
+XData <- data.frame(x)
+Y <- as.matrix(y)
+m <- Hmsc(Y = Y, XData = XData, XFormula = ~ x,
+					studyDesign = studyDesign, ranLevels = list("sample" = rL))
+```
+
+
+```{r}
+m <- sampleMcmc(m, thin = thin, samples = samples, transient = transient, nChains = nChains, verbose = verbose)
+
+preds <- computePredictedValues(m)
+MF <- evaluateModelFit(hM = m, predY = preds)
+MF$R2
+```
+
+```{r}
+mpost <- convertToCodaObject(m)
+plot(mpost$Alpha[[1]])
+
+summary(mpost$Alpha[[1]])$quantiles
+```
+
+
+comparison with non spatial model
+
+```{r}
+m <- Hmsc(Y = Y, XData = XData, XFormula = ~ x)
+
+m <- sampleMcmc(m, thin = thin, samples = samples, transient = transient, nChains = nChains, verbose = verbose)
+
+preds <- computePredictedValues(m)
+MF <- evaluateModelFit(hM = m, predY = preds)
+MF$R2
+
+```
+
+
+## Real Data Case Study
+
+```{r}
+da <- read.csv(here::here('data/databird/data.csv'))
+da <- droplevels(subset(da, Year == 2014))
+
+XData <- data.frame(hab = da$Habitat, clim = da$AprMay)
+Y <- as.matrix(da$Corvus_monedula)
+colnames(Y) <- "Corvus modedula"
+xy <- as.matrix(cbind(da$x, da$y))
+
+```
+
+
+
+```{r heigth = 5, width = 10}
+df <- data.frame(XData, Y, xy)
+
+A <- ggplot(df, aes(X1, X2, colour = hab, pch = hab)) +
+	geom_point() +
+	theme_few() +
+	ggtitle("Habitat") +
+	xlab("") + ylab("")
+B <- ggplot(df, aes(X1, X2, colour = clim, size = clim)) +
+	geom_point() +
+	theme_few() +
+	ggtitle("Climatic variable") +
+	xlab("") + ylab("") +
+	scale_colour_viridis()
+
+C <- ggplot(df, aes(X1, X2, colour = Corvus.modedula, size = Corvus.modedula)) +
+	geom_point()+
+	theme_few() +
+	ggtitle("Corvus count") +
+	xlab("") + ylab("") +
+	scale_colour_viridis(option = "magma")
+
+
+A + B + C +
+  plot_annotation(tag_levels = 'A',
+  								tag_prefix = "(",
+  								tag_suffix =  ")")
+
+
+```
 
