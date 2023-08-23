@@ -464,7 +464,7 @@ MF$R2
 da <- read.csv(here::here('data/databird/data.csv'))
 da <- droplevels(subset(da, Year == 2014))
 
-XData <- data.frame(hab = da$Habitat, clim = da$AprMay)
+XData <- data.frame(hab = factor(da$Habitat), clim = da$AprMay)
 Y <- as.matrix(da$Corvus_monedula)
 colnames(Y) <- "Corvus modedula"
 xy <- as.matrix(cbind(da$x, da$y))
@@ -501,6 +501,18 @@ A + B + C +
   								tag_prefix = "(",
   								tag_suffix =  ")")
 
+
+```
+
+model fitting
+
+```{r}
+studyDesign <- data.frame(route = as.factor(da$Route))
+rownames(xy) <- studyDesign[,1]
+rL <- HmscRandomLevel(sData = xy)
+XFormula = ~hab + poly(clim, degree = 2, raw = TRUE)
+
+mFULL <- Hmsc(Y = Y, XData = XData, XFormula = XFormula, distr = "lognormalpoisson", studyDesign = studyDesign, ranLevels = list(route = rL))
 
 ```
 
