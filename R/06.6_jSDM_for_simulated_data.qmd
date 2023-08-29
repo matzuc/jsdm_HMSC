@@ -107,3 +107,80 @@ plot(X[, 2], S.B)
 ```
 
 
+### 6.6.4 
+```{r}
+community <- "A"
+Y <- switch(
+	community,
+	A = Y.A,
+	B = Y.B
+)
+colnames(Y) <- phy$tip.label
+
+
+Tr <- switch(
+	community,
+	A = Tr.A,
+	B = Tr.B
+)
+TrData <- data.frame(trait = Tr[, 2])
+row.names(TrData) <- colnames(Y)
+XData <- data.frame(env = X[, 2])
+
+
+```
+
+
+*define the model*
+
+```{r}
+m <- Hmsc(
+	Y = Y,
+	XData = XData,
+	XFormula = ~env,
+	TrData = TrData,
+	TrFormula = ~trait,
+	phyloTree = phy,
+	distr = "probit"
+)
+
+
+```
+
+
+```{r}
+nChains <- 2
+thin <- 5
+samples <- 1000
+transient <- 500*thin
+verbose <- 500*thin
+
+```
+
+
+
+model fitting
+```{r}
+m <- sampleMcmc(m, thin = thin, samples = samples,
+								transient = transient, nChains = nChains, verbose = verbose)
+
+```
+
+```{r}
+mpost <- convertToCodaObject(m)
+```
+
+```{r}
+
+effectiveSize(mpost$Rho)
+gelman.diag(mpost$Rho, multivariate = FALSE, autoburnin =  FALSE)$psrf
+
+```
+
+
+```{r}
+preds <- computePredictedValues(m)
+MF <- evaluateModelFit(hM = m, predY = preds)
+MF
+```
+

@@ -1,0 +1,165 @@
+---
+title: "Chapter 5"
+format: html
+editor: source
+echo: true
+message: false
+warning: false
+
+---
+
+### libraries
+
+```{r}
+library(ggplot2)
+library(ggthemes)
+library(patchwork)
+library(Hmsc)
+library(viridis)
+library(dplyr)
+library(tidyr)
+```
+
+
+
+## 5.6 Simulated case studies
+
+p.80
+
+### simulating data
+
+Example from the book
+
+```{r}
+set.seed(34)
+n <- 50
+x <- rnorm(n)
+
+# parameters----------
+beta1 <- 0
+beta2 <- 1
+
+L <- beta1 + beta2 *x
+y1 <- L + rnorm(n, sd = 1)
+y2 <- 1 * ((L + rnorm(n, sd = 1)) > 0)
+y3 <- rpois(n = n, lambda = exp(L + rnorm(n, sd = 1)))
+
+```
+
+
+### 5.6.2 fitting models
+
+
+```{r}
+Y <- as.matrix(y1)
+XData <- data.frame(x = x)
+m.normal <- Hmsc(Y = Y, XData = XData, XFormula = ~ x)
+
+m.normal
+
+```
+
+
+```{r}
+nChains <- 2
+thin <- 5
+
+samples <- 1000
+transient <- 500*thin
+verbose <- 500*thin
+```
+
+
+
+        
+
+
+### 5.6.7 Hierarchical Random Effects
+
+```{r}
+set.seed(23)
+n <- 120
+x <- rnorm(n)
+beta1 <- 0
+beta2 <- 1
+sigma <- 1
+
+np <- 12
+sigma.plot <- 1
+L <- beta1 + beta2 * x
+plot.id <- sample(1:np, n, replace = T)
+ap <- rnorm(np, sd = sigma.plot)
+a <- ap[plot.id]
+set.seed(45)
+y <- L + a + rnorm(n, sd = sigma)
+```
+ 
+
+lmer
+
+```{r}
+plot.id <- as.factor(plot.id)
+sample.id <- as.factor(1:n)
+XData <- data.frame(x)
+Y <- as.matrix(y)
+
+studyDesign <- data.frame(sample = sample.id, plot= plot.id)
+rL <- HmscRandomLevel(units = studyDesign$plot)
+m <- Hmsc(Y = Y, XData = XData, XFormula = ~ x, studyDesign = studyDesign,
+					ranLevels = list("plot" = rL))
+
+```
+
+
+
+fit the model
+
+
+<!-- ```{r} -->
+<!-- nChains <- 2 -->
+<!-- thin <- 500 -->
+
+<!-- samples <- 5000 -->
+<!-- transient <- 500*thin -->
+<!-- verbose <- 500*thin -->
+<!-- ``` -->
+
+
+
+```{r}
+system.time(
+	m <- sampleMcmc(m, thin = thin, samples = samples, transient = transient, nChains = nChains, verbose = verbose)
+)
+```
+
+
+```{r}
+mpost <- convertToCodaObject(m)
+
+effectiveSize(mpost$Beta)
+gelman.diag(mpost$Beta, multivariate = FALSE)$psrf
+
+plot(mpost$Beta)
+
+```
+
+
+```{r}
+preds <- computePredictedValues(m)
+MF <- evaluateModelFit(hM = m, predY = preds)
+MF
+```
+
+
+<!-- *cross validation* -->
+
+<!-- ```{r} -->
+<!-- system.time( -->
+<!-- 	partition <- createPartition(m , nfolds = 2, colum = "sample") -->
+<!-- ) -->
+<!-- partition -->
+<!-- ``` -->
+
+
+
+
